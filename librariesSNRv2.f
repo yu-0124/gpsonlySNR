@@ -270,10 +270,10 @@ c
       subroutine read_broadcast4(filename, bele,iymd)
       implicit none
       include 'local.inc'
-      character*80 filename, temp
+      character*80 filename, temp, dynfmt, dynfmt2
       real*8 bele (maxeph,maxsat,28), rt1, rt2, rt3, rt4
       integer i, j, k, k1, isat, iymd(3),year4ch,
-     .  iprn, file(maxsat), it1, it2, it3, it4, it5, iversion, ios
+     .  iprn, file(maxsat), it1, it2, it3, it4, it5, it6, iversion, ios
       do i = 1, maxsat
         file(i) = 0
         do j=1,maxeph 
@@ -289,7 +289,7 @@ c
         call exit
       endif 
       read(44, '(i6)') iversion 
-      if (iversion.eq.2.or.iversion.eq.1) then
+      if (iversion.le.3) then
 102     read(44, '(60x, a20)') temp
         if (temp(1:13).eq.'END OF HEADER'.or.
      .   temp(1:8).eq.'        ') then
@@ -297,24 +297,36 @@ c
           goto 102
         endif
       else
-        print*, 'can only read version 1 or 2'
+        print*, 'can only read version 1, 2 and 3'
         call exit(1)
       endif
-12    read( 44, '(i2, 5i3, f5.1, 3d19.12)',err=14,iostat=ios) iprn, it1,
+
+12    continue
+      if(iversion.le.2)then
+        dynfmt='(i2,5(1x,i2),f5.1,3d19.12)'
+        read( 44, fmt=dynfmt, err=14, iostat=ios) iprn, it1,
      .  it2, it3, it4, it5, rt1, rt2, rt3, rt4
+      else if(iversion.eq.3)then
+        dynfmt='(1x,i2,2x,6(1x,i2),3d19.12)'
+        read( 44, fmt=dynfmt, err=14, iostat=ios) iprn, it1,
+     .  it2, it3, it4, it5, it6, rt2, rt3, rt4
+      endif
+
       if (ios.ne.0) goto 14
       file(iprn) = file(iprn) + 1
       if (file(iprn).gt.maxeph) then 
         print*, 'MORE THAN 50 ephemeris for PRN', iprn
         goto 14
       endif
+      if(iversion.le.2) dynfmt2='(3x,4d19.12)'
+      if(iversion.eq.3) dynfmt2='(4x,4d19.12)'
       do j = 1, 6
         k1 = 4*(j-1) + 1
-        read( 44, '(3x, 4d19.12)', err=14, iostat=ios) 
+        read( 44, fmt=dynfmt2, err=14, iostat=ios) 
      .       ( bele(file(iprn), iprn , k), k = k1, k1+3)
         if (ios.ne.0) goto 14
       enddo
-      if (iversion.eq.2) read(44,'(a60)') temp
+      if (iversion.ge.2) read(44,'(a60)') temp
 c     put decimal hour into the space in broadcast 
 c     element 28, i.e. hour plus minute/60
 c     if the year month and day are NOT the same as the observation
